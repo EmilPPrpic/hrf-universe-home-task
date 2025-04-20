@@ -5,7 +5,7 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Table,
+    Table, UniqueConstraint,
 )
 from sqlalchemy.orm import registry
 
@@ -67,3 +67,32 @@ class JobPosting(Model):
     standard_job_id: str
     country_code: Optional[str] = None
     days_to_hire: Optional[int] = None
+
+
+@mapper_registry.mapped
+@dataclass
+class DaysToHireStats(Model):
+    __table__ = Table(
+        "days_to_hire_stats",
+        mapper_registry.metadata,
+        Column("id", String, nullable=False, primary_key=True),
+        Column("min", Integer, nullable=True),
+        Column("max", Integer, nullable=True),
+        Column("avg", Integer, nullable=True),
+        Column("num_of_postings", Integer, nullable=True),
+        Column("country_code", String, nullable=True),
+        Column("standard_job_id", String, nullable=True),
+        UniqueConstraint(
+            "country_code",
+            "standard_job_id",
+            name="unique_country_code_standard_job_id",
+        ),
+        schema="public",
+    )
+    id: str
+    min: Optional[int] = None
+    max: Optional[int] = None
+    avg: Optional[int] = None
+    num_of_postings: Optional[int] = None
+    country_code: Optional[str] = None
+    standard_job_id: Optional[str] = None
