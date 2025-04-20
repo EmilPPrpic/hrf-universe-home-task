@@ -1,8 +1,41 @@
 from home_task.db import get_session
+from home_task.models import DaysToHireStats
+from sqlalchemy.dialects.postgresql import insert
 
 session = get_session()
 
 MIN_JOB_POSTINGS_THRESHOLD = 5
+BATCH_SIZE = 1000
+
+
+def upsert_days_to_hire(batch):
+    stmt = insert(DaysToHireStats.__table__).values([
+        {
+            "id": stat.id,
+            "country_code": stat.country_code,
+            "standard_job_id": stat.standard_job_id,
+            "min": stat.min,
+            "max": stat.max,
+            "avg": stat.avg,
+            "num_of_postings": stat.num_of_postings,
+        }
+        for stat in batch
+    ])
+
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["id"],
+        set_={
+            "country_code": stmt.excluded.country_code,
+            "standard_job_id": stmt.excluded.standard_job_id,
+            "min": stmt.excluded.min,
+            "max": stmt.excluded.max,
+            "avg": stmt.excluded.avg,
+            "num_of_postings": stmt.excluded.num_of_postings,
+        }
+    )
+
+    session.execute(stmt)
+    session.commit()
 
 
 def calculate_days_to_hire():
@@ -46,11 +79,29 @@ def calculate_days_to_hire():
         FROM aggregated
         WHERE aggregated.num_of_postings >= :min_threshold;
     """
-    result = session.execute(query, {"min_threshold": MIN_JOB_POSTINGS_THRESHOLD})
-    rows = result.fetchall()
-    print("Rows fetched:", len(rows))
-    for row in rows:
-        print(row)
+    result = session.execute(query, {"min_threshold": MIN_JOB_POSTINGS_THRESHOLD}).yield_per(BATCH_SIZE)
+    batch = []
+    for row in result:
+        country_code = row.country_code or "WORLD"
+
+        res = DaysToHireStats(
+            id=row.standard_job_id + (country_code or "WORLD"),
+            country_code=row.country_code,
+            standard_job_id=row.standard_job_id,
+            min=row.min,
+            max=row.max,
+            avg=row.avg,
+            num_of_postings=row.num_of_postings,
+        )
+
+        batch.append(res)
+
+        if len(batch) >= BATCH_SIZE:
+            upsert_days_to_hire(batch)
+            batch.clear()
+
+    if batch:
+        upsert_days_to_hire(batch)
 
 
 calculate_days_to_hire()
