@@ -5,7 +5,7 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Table, UniqueConstraint,
+    Table
 )
 from sqlalchemy.orm import registry
 
@@ -82,11 +82,7 @@ class DaysToHireStats(Model):
         Column("num_of_postings", Integer, nullable=True),
         Column("country_code", String, nullable=True),
         Column("standard_job_id", String, nullable=True),
-        UniqueConstraint(
-            "country_code",
-            "standard_job_id",
-            name="unique_country_code_standard_job_id",
-        ),
+        Column("calculated_at", String, nullable=True),
         schema="public",
     )
     id: str
@@ -96,3 +92,4 @@ class DaysToHireStats(Model):
     num_of_postings: Optional[int] = None
     country_code: Optional[str] = None
     standard_job_id: Optional[str] = None
+    calculated_at: Optional[str] = None

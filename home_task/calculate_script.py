@@ -1,6 +1,9 @@
 from home_task.db import get_session
 from home_task.models import DaysToHireStats
+from home_task.utils import generate_days_to_hire_id
+
 from sqlalchemy.dialects.postgresql import insert
+from datetime import datetime
 
 session = get_session()
 
@@ -8,7 +11,10 @@ MIN_JOB_POSTINGS_THRESHOLD = 5
 BATCH_SIZE = 1000
 
 
-def upsert_days_to_hire(batch):
+def upsert_days_to_hire(batch: list[DaysToHireStats]):
+    """
+    Upsert the days to hire statistics into the database, overwriting existing records if they exist.
+    """
     stmt = insert(DaysToHireStats.__table__).values([
         {
             "id": stat.id,
@@ -18,6 +24,7 @@ def upsert_days_to_hire(batch):
             "max": stat.max,
             "avg": stat.avg,
             "num_of_postings": stat.num_of_postings,
+            "calculated_at": stat.calculated_at,
         }
         for stat in batch
     ])
@@ -31,6 +38,7 @@ def upsert_days_to_hire(batch):
             "max": stmt.excluded.max,
             "avg": stmt.excluded.avg,
             "num_of_postings": stmt.excluded.num_of_postings,
+            "calculated_at": stmt.excluded.calculated_at,
         }
     )
 
@@ -82,17 +90,17 @@ def calculate_days_to_hire():
     result = session.execute(query, {"min_threshold": MIN_JOB_POSTINGS_THRESHOLD}).yield_per(BATCH_SIZE)
     batch = []
     for row in result:
-        country_code = row.country_code or "WORLD"
-
         res = DaysToHireStats(
-            id=row.standard_job_id + (country_code or "WORLD"),
+            id=generate_days_to_hire_id(row.standard_job_id, row.country_code),
             country_code=row.country_code,
             standard_job_id=row.standard_job_id,
             min=row.min,
             max=row.max,
             avg=row.avg,
             num_of_postings=row.num_of_postings,
+            calculated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
+        print(res)
 
         batch.append(res)
 
